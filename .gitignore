@@ -1,4 +1,10 @@
 .env
 __pycache__/
-*.xlsx
-sample_pdfs/
+*.pyc
+.venv/
+venv/
+data/cache/
+data/extracted.json
+data/extracted.xlsx
+dashboard/index.html
+300 Insurance Copy/
