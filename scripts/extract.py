@@ -16,18 +16,20 @@ from src.schema import FINAL_COLUMNS  # noqa: E402
 
 
 def _write_excel(df: pd.DataFrame, xlsx_path: Path) -> None:
-    """Write the flat sheet plus pivot/analytics sheets used by reviewers."""
+    """Write flat sheet with live formulas + 5 summary/pivot sheets."""
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+
     df = df.copy()
     df["premium_amount"] = pd.to_numeric(df["premium_amount"], errors="coerce")
     df["od_end_date_dt"] = pd.to_datetime(df["od_end_date"], errors="coerce")
 
+    # --- Build summary sheets from Python-enriched values ---
     by_status = (
         df.groupby("status", dropna=False)
         .agg(policies=("source_file", "count"), total_premium=("premium_amount", "sum"))
-        .reset_index()
-        .sort_values("policies", ascending=False)
+        .reset_index().sort_values("policies", ascending=False)
     )
-
     by_company = (
         df.groupby("insurance_company_name", dropna=False)
         .agg(
@@ -35,40 +37,60 @@ def _write_excel(df: pd.DataFrame, xlsx_path: Path) -> None:
             total_premium=("premium_amount", "sum"),
             avg_premium=("premium_amount", "mean"),
         )
-        .reset_index()
-        .sort_values("policies", ascending=False)
+        .reset_index().sort_values("policies", ascending=False)
     )
-
     by_type = (
         df.groupby(["policy_type", "policy_duration"], dropna=False)
         .agg(policies=("source_file", "count"), total_premium=("premium_amount", "sum"))
-        .reset_index()
-        .sort_values("policies", ascending=False)
+        .reset_index().sort_values("policies", ascending=False)
     )
-
     by_month = (
         df.assign(expiry_month=df["od_end_date_dt"].dt.strftime("%Y-%m"))
         .groupby("expiry_month", dropna=False)
         .agg(policies=("source_file", "count"))
-        .reset_index()
-        .sort_values("expiry_month")
+        .reset_index().sort_values("expiry_month")
     )
-
     alerts = (
         df[df["days_left"].apply(lambda v: isinstance(v, (int, float)) and v <= 30)]
         .sort_values("days_left")
         .drop(columns=["od_end_date_dt"])
     )
 
-    df = df.drop(columns=["od_end_date_dt"])
+    df_out = df.drop(columns=["od_end_date_dt"])
 
     with pd.ExcelWriter(xlsx_path, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="All Policies")
+        df_out.to_excel(writer, index=False, sheet_name="All Policies")
         alerts.to_excel(writer, index=False, sheet_name="Expiry Alerts (<=30d)")
         by_status.to_excel(writer, index=False, sheet_name="By Status")
         by_company.to_excel(writer, index=False, sheet_name="By Insurer")
         by_type.to_excel(writer, index=False, sheet_name="By Policy Type")
         by_month.to_excel(writer, index=False, sheet_name="By Expiry Month")
+
+        # --- Replace days_left + status in All Policies with live Excel formulas ---
+        ws = writer.sheets["All Policies"]
+        col_map = {ws.cell(1, c).value: get_column_letter(c) for c in range(1, ws.max_column + 1)}
+        od_end = col_map.get("od_end_date", "F")
+        days   = col_map.get("days_left", "J")
+        status = col_map.get("status", "K")
+
+        header_fill = PatternFill("solid", fgColor="1E3A5F")
+        header_font = Font(color="FFFFFF", bold=True)
+        for cell in ws[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center")
+
+        for row in range(2, ws.max_row + 1):
+            ws[f"{days}{row}"].value = (
+                f'=IF({od_end}{row}="","",IFERROR(INT({od_end}{row}-TODAY()),""))'
+            )
+            ws[f"{status}{row}"].value = (
+                f'=IF({days}{row}="","",IF({days}{row}<0,"Expired",'
+                f'IF({days}{row}<=30,"Expiring Soon","Active")))'
+            )
+
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
 
 
 def main() -> int:
