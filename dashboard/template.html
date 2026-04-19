@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <link href="https://cdn.jsdelivr.net/npm/gridjs/dist/theme/mermaid.min.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/gridjs/dist/gridjs.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   .gridjs-wrapper { box-shadow: none !important; border-radius: 0.5rem; }
@@ -69,7 +70,7 @@
       <select id="filter-company" class="text-sm rounded-md border-slate-300 focus:ring-slate-400">
         <option value="">All companies</option>
       </select>
-      <button id="export-csv" class="text-sm rounded-md bg-slate-900 text-white px-3 py-1.5 hover:bg-slate-700">Download CSV</button>
+      <button id="export-xlsx" class="text-sm rounded-md bg-emerald-700 text-white px-3 py-1.5 hover:bg-emerald-600">⬇ Download Excel (all sheets)</button>
     </div>
     <div id="grid" class="p-5"></div>
   </section>
@@ -85,6 +86,18 @@
   const payload = JSON.parse(document.getElementById('data-payload').textContent);
   const rows = payload.rows || [];
   const generatedAt = payload.generated_at;
+
+  // Recompute days_left and status live so they never go stale
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  rows.forEach(r => {
+    if (r.od_end_date) {
+      const end = new Date(r.od_end_date);
+      if (!isNaN(end)) {
+        r.days_left = Math.round((end - today) / 86400000);
+        r.status = r.days_left < 0 ? 'Expired' : r.days_left <= 30 ? 'Expiring Soon' : 'Active';
+      }
+    }
+  });
 
   document.getElementById('generated-at').textContent = 'Generated ' + new Date(generatedAt).toLocaleString();
   document.getElementById('total-policies').textContent = rows.length + ' policies';
@@ -257,20 +270,76 @@
   statusSel.addEventListener('change', refresh);
   companySel.addEventListener('change', refresh);
 
-  // ------ CSV export ------
-  document.getElementById('export-csv').addEventListener('click', () => {
-    const cols = columns.map(c => c.id);
-    const header = cols.join(',');
-    const body = filtered().map(r => cols.map(k => {
-      const v = r[k] ?? '';
-      const s = String(v).replace(/"/g, '""');
-      return /[",\n]/.test(s) ? `"${s}"` : s;
-    }).join(',')).join('\n');
-    const blob = new Blob([header + '\n' + body], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'alt_mobility_policies.csv'; a.click();
-    URL.revokeObjectURL(url);
+  // ------ Excel export (multi-sheet via SheetJS) ------
+  document.getElementById('export-xlsx').addEventListener('click', () => {
+    const wb = XLSX.utils.book_new();
+    const colIds = columns.map(c => c.id);
+
+    // Sheet 1 — All Policies (respects active filters)
+    const allData = filtered().map(r => {
+      const out = {};
+      colIds.forEach(k => { out[k] = r[k] ?? ''; });
+      return out;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allData), 'All Policies');
+
+    // Sheet 2 — Expiry Alerts (<=30 days)
+    const alertData = rows
+      .filter(r => r.days_left !== null && r.days_left !== undefined && r.days_left <= 30)
+      .sort((a, b) => a.days_left - b.days_left)
+      .map(r => { const o = {}; colIds.forEach(k => { o[k] = r[k] ?? ''; }); return o; });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(alertData), 'Expiry Alerts (<=30d)');
+
+    // Sheet 3 — By Status
+    const statusMap = {};
+    rows.forEach(r => {
+      const s = r.status || 'Unknown';
+      if (!statusMap[s]) statusMap[s] = { status: s, policies: 0, total_premium: 0 };
+      statusMap[s].policies++;
+      statusMap[s].total_premium += parseFloat(r.premium_amount) || 0;
+    });
+    XLSX.utils.book_append_sheet(wb,
+      XLSX.utils.json_to_sheet(Object.values(statusMap).sort((a,b) => b.policies - a.policies)),
+      'By Status');
+
+    // Sheet 4 — By Insurer
+    const insMap = {};
+    rows.forEach(r => {
+      const k = r.insurance_company_name || 'Unknown';
+      if (!insMap[k]) insMap[k] = { insurance_company_name: k, policies: 0, total_premium: 0 };
+      insMap[k].policies++;
+      insMap[k].total_premium += parseFloat(r.premium_amount) || 0;
+    });
+    Object.values(insMap).forEach(v => { v.avg_premium = +(v.total_premium / v.policies).toFixed(2); });
+    XLSX.utils.book_append_sheet(wb,
+      XLSX.utils.json_to_sheet(Object.values(insMap).sort((a,b) => b.policies - a.policies)),
+      'By Insurer');
+
+    // Sheet 5 — By Policy Type
+    const typeMap = {};
+    rows.forEach(r => {
+      const k = (r.policy_type || 'Unknown') + '|' + (r.policy_duration || '');
+      if (!typeMap[k]) typeMap[k] = { policy_type: r.policy_type, policy_duration: r.policy_duration, policies: 0, total_premium: 0 };
+      typeMap[k].policies++;
+      typeMap[k].total_premium += parseFloat(r.premium_amount) || 0;
+    });
+    XLSX.utils.book_append_sheet(wb,
+      XLSX.utils.json_to_sheet(Object.values(typeMap).sort((a,b) => b.policies - a.policies)),
+      'By Policy Type');
+
+    // Sheet 6 — By Expiry Month
+    const monthMap = {};
+    rows.forEach(r => {
+      if (!r.od_end_date) return;
+      const m = r.od_end_date.slice(0, 7);
+      if (!monthMap[m]) monthMap[m] = { expiry_month: m, policies: 0 };
+      monthMap[m].policies++;
+    });
+    XLSX.utils.book_append_sheet(wb,
+      XLSX.utils.json_to_sheet(Object.keys(monthMap).sort().map(k => monthMap[k])),
+      'By Expiry Month');
+
+    XLSX.writeFile(wb, 'alt_mobility_insurance_dashboard.xlsx');
   });
 })();
 </script>
