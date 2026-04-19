@@ -18,6 +18,7 @@ from src.schema import FINAL_COLUMNS  # noqa: E402
 def _write_excel(df: pd.DataFrame, xlsx_path: Path) -> None:
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
     from openpyxl.utils import get_column_letter
+    from openpyxl.chart import BarChart, PieChart, Reference
     from openpyxl.formatting.rule import CellIsRule
 
     df = df.copy()
@@ -208,34 +209,52 @@ def _write_excel(df: pd.DataFrame, xlsx_path: Path) -> None:
         prem_val.alignment = Alignment(horizontal="left", vertical="center")
         ws_dash.row_dimensions[7].height = 24
 
-        # ── Summary table on Dashboard (no charts — for Numbers/Excel compatibility) ──
-        ws_dash.row_dimensions[9].height = 18
-        headers = ["Sheet", "What's Inside"]
-        nav = [
-            ("All Policies",          f"All {total} policies — days_left & status auto-update on open"),
-            ("Expiry Alerts (<=30d)", f"{len(alerts)} policies expiring within 30 days"),
-            ("By Status",             "Policy count + total premium per status"),
-            ("By Insurer",            "Policy count + total/avg premium per insurer"),
-            ("By Policy Type",        "Annual vs Multi-Year breakdown"),
-            ("By Expiry Month",       "Policies expiring per calendar month"),
-        ]
-        ws_dash["B10"].value = "Sheet"
-        ws_dash["D10"].value = "What's Inside"
-        for c in ["B", "D"]:
-            ws_dash[f"{c}10"].fill = fill(NAVY)
-            ws_dash[f"{c}10"].font = Font(bold=True, color=WHITE, size=10)
-            ws_dash[f"{c}10"].alignment = Alignment(horizontal="left", vertical="center")
-        ws_dash.row_dimensions[10].height = 20
-        for i, (sheet, desc) in enumerate(nav, start=11):
-            ws_dash[f"B{i}"].value = sheet
-            ws_dash[f"D{i}"].value = desc
-            bg = LIGHT_GREY if i % 2 == 0 else WHITE
-            for c in ["B", "D"]:
-                ws_dash[f"{c}{i}"].fill = fill(bg)
-                ws_dash[f"{c}{i}"].font = Font(size=10, color="334155")
-                ws_dash[f"{c}{i}"].alignment = Alignment(vertical="center")
-                ws_dash[f"{c}{i}"].border = thin_border()
-            ws_dash.row_dimensions[i].height = 18
+        # ── Chart 1: Policies by Status (Pie) ──
+        ws_st = writer.sheets["By Status"]
+        n_status = ws_st.max_row - 1
+        pie = PieChart()
+        pie.title = "Policies by Status"
+        pie.style = 10
+        labels_ref = Reference(ws_st, min_col=1, min_row=2, max_row=1 + n_status)
+        data_ref   = Reference(ws_st, min_col=2, min_row=1, max_row=1 + n_status)
+        pie.add_data(data_ref, titles_from_data=True)
+        pie.set_categories(labels_ref)
+        pie.width = 14; pie.height = 12
+        ws_dash.add_chart(pie, "B9")
+
+        # ── Chart 2: Top Insurers (Bar) ──
+        ws_ins = writer.sheets["By Insurer"]
+        n_ins = min(ws_ins.max_row - 1, 8)
+        bar = BarChart()
+        bar.type = "bar"
+        bar.title = "Policies by Insurer (Top 8)"
+        bar.style = 10
+        bar.y_axis.title = "Insurer"
+        bar.x_axis.title = "Policies"
+        bar.legend = None
+        b_labels = Reference(ws_ins, min_col=1, min_row=2, max_row=1 + n_ins)
+        b_data   = Reference(ws_ins, min_col=2, min_row=1, max_row=1 + n_ins)
+        bar.add_data(b_data, titles_from_data=True)
+        bar.set_categories(b_labels)
+        bar.width = 22; bar.height = 12
+        ws_dash.add_chart(bar, "D9")
+
+        # ── Chart 3: Expiry Timeline (Column) ──
+        ws_mo = writer.sheets["By Expiry Month"]
+        n_mo = ws_mo.max_row - 1
+        col_chart = BarChart()
+        col_chart.type = "col"
+        col_chart.title = "Policies Expiring by Month"
+        col_chart.style = 10
+        col_chart.y_axis.title = "Policies"
+        col_chart.x_axis.title = "Month"
+        col_chart.legend = None
+        m_labels = Reference(ws_mo, min_col=1, min_row=2, max_row=1 + n_mo)
+        m_data   = Reference(ws_mo, min_col=2, min_row=1, max_row=1 + n_mo)
+        col_chart.add_data(m_data, titles_from_data=True)
+        col_chart.set_categories(m_labels)
+        col_chart.width = 36; col_chart.height = 12
+        ws_dash.add_chart(col_chart, "B22")
 
 
 def main() -> int:
