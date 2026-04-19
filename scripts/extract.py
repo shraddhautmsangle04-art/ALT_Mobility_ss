@@ -20,7 +20,6 @@ def _write_excel(df: pd.DataFrame, xlsx_path: Path) -> None:
     from openpyxl.utils import get_column_letter
     from openpyxl.chart import BarChart, PieChart, Reference
     from openpyxl.formatting.rule import CellIsRule
-    from openpyxl.chart.label import DataLabelList
 
     df = df.copy()
     df["premium_amount"] = pd.to_numeric(df["premium_amount"], errors="coerce")
@@ -147,7 +146,7 @@ def _write_excel(df: pd.DataFrame, xlsx_path: Path) -> None:
             ws.auto_filter.ref = ws.dimensions
 
         # ── Dashboard sheet (first sheet, opens by default) ───────────────
-        ws_dash = wb.create_sheet("📊 Dashboard", 0)
+        ws_dash = wb.create_sheet("Dashboard", 0)
         ws_dash.sheet_view.showGridLines = False
         ws_dash.sheet_view.showRowColHeaders = False
         ws_dash.column_dimensions["A"].width = 3
@@ -216,9 +215,6 @@ def _write_excel(df: pd.DataFrame, xlsx_path: Path) -> None:
         pie = PieChart()
         pie.title = "Policies by Status"
         pie.style = 10
-        pie.dataLabels = DataLabelList()
-        pie.dataLabels.showPercent = True
-        pie.dataLabels.showCatName = True
         labels_ref = Reference(ws_st, min_col=1, min_row=2, max_row=1 + n_status)
         data_ref   = Reference(ws_st, min_col=2, min_row=1, max_row=1 + n_status)
         pie.add_data(data_ref, titles_from_data=True)
