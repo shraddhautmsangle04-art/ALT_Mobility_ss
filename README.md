@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ALT Mobility — Insurance Policy Dashboard
 
 Extracts structured data from motor insurance policy PDFs and renders a static HTML
@@ -100,3 +101,6 @@ data/
   extracted.json    # aggregated + enriched rows
   extracted.xlsx    # same, for Excel
 ```
+=======
+# ALT_Mobility_ss
+>>>>>>> 91ef9b8360eb2d73ede96cb519ce6e15af104dd7
