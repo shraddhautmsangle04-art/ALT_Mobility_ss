@@ -3610,8 +3610,8 @@
     "premium_amount": 7934.0,
     "source_file": "MD9EMHDL24E217023.pdf",
     "_extraction_method": "text:gpt-4o-mini",
-    "days_left": 37,
-    "status": "Active",
+    "days_left": 30,
+    "status": "Expiring Soon",
     "policy_duration": 1,
     "policy_type": "Annual"
   },
