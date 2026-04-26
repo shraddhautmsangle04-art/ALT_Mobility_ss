@@ -12,5 +12,15 @@ services:
         value: gpt-4o-mini
       - key: OPENAI_FALLBACK_MODEL
         value: gpt-4o
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GIT_BRANCH
+        value: feat/api-incremental-upload
+      - key: GIT_REMOTE_URL
+        value: https://github.com/shraddhautmsangle04-art/ALT_Mobility_ss.git
+      - key: GIT_USER_NAME
+        value: ALT Mobility Bot
+      - key: GIT_USER_EMAIL
+        value: bot@altmobility.local
       - key: PYTHON_VERSION
         value: 3.12.3
