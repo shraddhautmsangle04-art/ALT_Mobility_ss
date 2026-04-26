@@ -26,7 +26,7 @@
     "premium_amount": 1517.0,
     "source_file": "3005_O_432814775_00_B00.pdf",
     "_extraction_method": "text:gpt-4o-mini",
-    "days_left": 326,
+    "days_left": 320,
     "status": "Active",
     "policy_duration": 1,
     "policy_type": "Annual"
@@ -58,7 +58,7 @@
     "premium_amount": 1517.0,
     "source_file": "3005_O_432818667_00_B00.pdf",
     "_extraction_method": "text:gpt-4o-mini",
-    "days_left": 326,
+    "days_left": 320,
     "status": "Active",
     "policy_duration": 1,
     "policy_type": "Annual"
