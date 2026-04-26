@@ -1,19 +1,15 @@
-<<<<<<< HEAD
 # ALT Mobility — Insurance Policy Dashboard
 
-Extracts structured data from motor insurance policy PDFs and renders a static HTML
-dashboard with an expiry tracker.
+Extracts structured data from motor insurance policy PDFs and renders an
+interactive dashboard with an expiry tracker. Now also exposes a FastAPI
+endpoint for incrementally uploading new PDFs from the dashboard UI.
 
 ## What it produces
 
-A single `dashboard/index.html` (open in any browser — no server) containing:
-
-- KPI cards: total, active, expiring soon (≤30d), expired
-- Expiry alerts table for policies expiring within 30 days or already expired
-- Charts: status distribution, top insurers, monthly expiry timeline
-- Full interactive policy table: search, sort, paginate, filter, export CSV
-
-Plus `data/extracted.xlsx` and `data/extracted.json` for further analysis.
+- **`dashboard/index.html`** — interactive dashboard with KPI cards, expiry
+  alerts, charts, search/sort/filter, **PDF upload button**, CSV/Excel export.
+- **`data/extracted.json`** — all rows in JSON.
+- **`data/extracted.xlsx`** — multi-sheet Excel (live formulas + pivots).
 
 ## Extraction reliability
 
@@ -59,14 +55,28 @@ cp .env.example .env
 
 ## Run
 
+### Option A — FastAPI server (with upload UI)
+
 ```bash
-# 1. Extract (uses OpenAI structured output; caches per-PDF in data/cache/)
+uvicorn api:app --reload --port 8000
+# open http://localhost:8000
+```
+
+The dashboard at `/` includes an **Upload PDF** button. Each upload runs the
+extraction pipeline, dedupes by chassis number / filename, updates
+`data/extracted.json` + `data/extracted.xlsx`, and regenerates
+`dashboard/index.html`.
+
+### Option B — CLI (batch)
+
+```bash
+# 1. Extract every PDF in ./300 Insurance Copy/
 python scripts/extract.py --workers 8
 
-# 2. Render dashboard
+# 2. Render the dashboard
 python scripts/build_dashboard.py
 
-# 3. Open dashboard/index.html in a browser
+# 3. Open it
 open dashboard/index.html
 ```
 
@@ -81,26 +91,41 @@ python scripts/build_dashboard.py --from-cache  # render even if extract.py cras
 Re-running `extract.py` skips any PDF that already has a cached result — safe to
 interrupt and resume.
 
+## Deploying to Render
+
+The repo includes a `render.yaml` blueprint. To deploy:
+
+1. Push this branch to GitHub.
+2. On [render.com](https://render.com), create a new **Blueprint** and point it
+   at this repo.
+3. In the service's **Environment** tab, add `OPENAI_API_KEY`.
+4. Deploy. Render uses `runtime.txt` (Python 3.12) and the start command from
+   `render.yaml`.
+
+Free-tier note: filesystem is ephemeral, so uploaded PDFs and `extracted.json`
+reset on every redeploy. Fine for a demo. For persistence, attach a Render disk
+or move uploads to S3.
+
 ## Project layout
 
 ```
 src/
-  schema.py         # Pydantic model + final column order
-  pdf_extractor.py  # PyMuPDF text extraction
-  ai_extractor.py   # OpenAI structured output call
-  enrichment.py     # days_left, status, duration, policy_type
-  pipeline.py       # orchestration + caching + concurrency
+  schema.py          # Pydantic model + final column order
+  pdf_extractor.py   # PyMuPDF text extraction
+  ai_extractor.py    # OpenAI structured output call
+  enrichment.py      # days_left, status, duration, policy_type
+  pipeline.py        # orchestration + caching + concurrency
+  excel_exporter.py  # multi-sheet Excel writer (shared by CLI + API)
 scripts/
   extract.py           # PDFs → JSON + XLSX
   build_dashboard.py   # JSON → static HTML
 dashboard/
-  template.html     # dashboard shell (data injected at build time)
-  index.html        # generated output
+  template.html      # dashboard shell (data injected at build time)
+  index.html         # generated output
+api.py               # FastAPI app: POST /api/upload + static dashboard
 data/
-  cache/*.json      # per-PDF AI results (gitignored)
-  extracted.json    # aggregated + enriched rows
-  extracted.xlsx    # same, for Excel
+  cache/*.json       # per-PDF AI results (gitignored)
+  uploads/*.pdf      # incoming uploads via API (gitignored)
+  extracted.json     # aggregated + enriched rows
+  extracted.xlsx     # same, for Excel
 ```
-=======
-# ALT_Mobility_ss
->>>>>>> 91ef9b8360eb2d73ede96cb519ce6e15af104dd7

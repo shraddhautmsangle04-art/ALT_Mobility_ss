@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: alt-mobility-ss
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: OPENAI_FALLBACK_MODEL
+        value: gpt-4o
+      - key: PYTHON_VERSION
+        value: 3.12.3
