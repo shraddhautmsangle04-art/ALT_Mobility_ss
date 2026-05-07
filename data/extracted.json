@@ -5038,5 +5038,21 @@
     "status": "Active",
     "policy_duration": 1,
     "policy_type": "Annual"
+  },
+  {
+    "policy_number": null,
+    "fire_covered": null,
+    "od_start_date": null,
+    "insurance_company_name": null,
+    "vehicle_chassis_number": null,
+    "premium_amount": null,
+    "od_end_date": null,
+    "damage_coverage": null,
+    "source_file": "Quectel_EC200U&EG915U_Series_AT_Commands_Manual_V1.0-1.pdf",
+    "_extraction_method": "text:gpt-4o",
+    "days_left": null,
+    "status": "Unknown",
+    "policy_duration": null,
+    "policy_type": null
   }
 ]
